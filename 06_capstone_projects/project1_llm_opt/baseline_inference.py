@@ -92,14 +92,13 @@ print(f"Loading model with dtype={args.dtype}...")
 dtype_map = {"float32": torch.float32, "float16": torch.float16, "bfloat16": torch.bfloat16}
 torch_dtype = dtype_map.get(args.dtype, torch.float16)
 
-# device_map="auto" uses the accelerate library to automatically spread the
-# model across available GPUs and CPU if the model is too large for one GPU
+# Load model then move to device. device_map="auto" requires the accelerate
+# package; using .to(device) is equivalent on single-GPU setups.
 model = AutoModelForCausalLM.from_pretrained(
     args.model,
     torch_dtype=torch_dtype,
-    device_map="auto",       # auto-places layers on GPU/CPU as needed
     low_cpu_mem_usage=True,  # load weights directly to GPU, skip CPU staging
-)
+).to(device)
 model.eval()  # eval mode disables dropout and batch norm tracking
 
 # ── Snapshot GPU memory AFTER model load ─────────────────────────────────────

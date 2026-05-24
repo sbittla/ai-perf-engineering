@@ -64,8 +64,7 @@ def load_model(model_name):
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         torch_dtype=torch.float16,
-        device_map="auto",
-    )
+    ).to(device)
     model.eval()
     return tokenizer, model
 

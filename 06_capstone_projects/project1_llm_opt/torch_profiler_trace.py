@@ -54,8 +54,8 @@ if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 
 model = AutoModelForCausalLM.from_pretrained(
-    args.model, torch_dtype=torch.float16, device_map="auto"
-)
+    args.model, torch_dtype=torch.float16
+).to(device)
 model.eval()
 
 prompt = "The key challenge in machine learning is"
@@ -84,8 +84,12 @@ print("Running profiler (3 steps)...")
 # This prevents the profiler startup overhead from contaminating results.
 schedule = torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=1)
 
-# on_trace_ready=tensorboard_trace_handler saves TensorBoard-compatible traces
+# tensorboard_trace_handler saves a Chrome-compatible .pt.trace.json file that
+# can be opened in both TensorBoard and chrome://tracing.  The trace can only
+# be exported once, so we use this single handler instead of also calling
+# export_chrome_trace() manually after the context exits.
 tb_dir = os.path.join(args.outdir, "tb_trace")
+chrome_path = os.path.join(args.outdir, "chrome_trace.json")
 
 with profile(
     activities=[
@@ -151,23 +155,10 @@ print(prof.key_averages().table(
     row_limit=10
 ))
 
-# ── EXPORT Chrome trace ───────────────────────────────────────────────────────
-chrome_path = os.path.join(args.outdir, "chrome_trace.json")
-prof.export_chrome_trace(chrome_path)
-print(f"\n✓ Chrome trace saved: {chrome_path}")
-print(f"  → Open chrome://tracing in Chrome browser")
-print(f"  → Click 'Load' and select this file")
-print(f"  → Zoom in on GPU rows to see kernel durations")
-
-# ── EXPORT stacks for flamegraph ──────────────────────────────────────────────
-stacks_path = os.path.join(args.outdir, "profiler_stacks.txt")
-prof.export_stacks(stacks_path, metric="self_cuda_time_total")
-print(f"✓ Stack traces saved: {stacks_path}")
-print(f"  → Generate flamegraph: flamegraph.pl {stacks_path} > gpu_flamegraph.svg")
-
-print(f"\n✓ TensorBoard traces saved: {tb_dir}/")
-print(f"  → Run: tensorboard --logdir {tb_dir}")
-print(f"  → Open: http://localhost:6006 → PyTorch Profiler tab")
+print(f"\n✓ Traces saved: {tb_dir}/  (*.pt.trace.json)")
+print(f"  → TensorBoard : tensorboard --logdir {tb_dir}")
+print(f"                  then http://localhost:6006 → PyTorch Profiler tab")
+print(f"  → Chrome      : open chrome://tracing → Load any *.pt.trace.json file")
 
 # ── Quick torch.utils.bottleneck hint ────────────────────────────────────────
 print("\n" + "="*70)
