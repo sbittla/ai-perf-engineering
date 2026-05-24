@@ -132,9 +132,9 @@ def exp_compare():
     if DEVICE != "cuda":
         print("  (Skipped – CUDA not available)"); return
 
-    # Simulate loading 1GB of weights at different precisions
+    # Simulate loading weights at different precisions (scaled down to fit 8GB GPU)
     # In real LLM decode: GPU reads ~all weights once per token
-    n_weights = 256 * 1024 * 1024   # 1GB of FP32 = 256M floats
+    n_weights = 4 * 1024 * 1024   # 16MB of FP32 = 4M floats
 
     configs = [
         ("FP32",  torch.float32, 4, 1.0),
@@ -151,8 +151,12 @@ def exp_compare():
     for name, dt, bytes_per, _ in configs:
         n = n_weights
         if dt == torch.int8:
-            n = n_weights * 4  # 1 byte vs 4 bytes: 4× more ints to fill same data
-        t = torch.randint(0, 127, (n,), device=DEVICE).to(dt)
+            n = n_weights * 4  # 1 byte vs 4 bytes: 4× more ints for same memory footprint
+        # Use rand-based creation to avoid int64 intermediate (torch.randint default)
+        if dt == torch.int8:
+            t = (torch.rand(n, device=DEVICE) * 127).to(dt)
+        else:
+            t = torch.rand(n, device=DEVICE).to(dt)
         size_gb = t.numel() * t.element_size() / 1e9
         ms = cuda_ms(lambda: t.sum())    # force memory read
         bw = size_gb / (ms / 1000)

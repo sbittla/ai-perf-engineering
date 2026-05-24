@@ -63,15 +63,17 @@ if DEVICE == "cuda":
 
     # CORRECT: CUDA events record timestamps on the GPU timeline
     # TODO 1: Create start and end CUDA events with enable_timing=True
-    start_evt = None
-    end_evt   = None
+    start_evt = torch.cuda.Event(enable_timing=True)
+    end_evt   = torch.cuda.Event(enable_timing=True)
 
     # TODO 2: Record start_evt, run torch.mm(A, B), record end_evt
-    # (hint: start_evt.record(); C = ...; end_evt.record())
+    start_evt.record()
+    C = torch.mm(A, B)
+    end_evt.record()
 
     # TODO 3: Synchronize (wait for GPU) then get elapsed time
-    # (hint: torch.cuda.synchronize(); elapsed = start_evt.elapsed_time(end_evt))
-    elapsed_correct = None
+    torch.cuda.synchronize()
+    elapsed_correct = start_evt.elapsed_time(end_evt)
 
     assert start_evt is not None,       "create start event"
     assert end_evt   is not None,       "create end event"
@@ -130,16 +132,24 @@ print("  ✓ Section 2 — always warm up before benchmarking")
 print("\n── Section 3: Reusable benchmark() Helper ──")
 
 def benchmark(fn, warmup=5, iters=20, label=""):
-    """
-    TODO 4: Complete this function.
-    It should:
-      1. Run fn() `warmup` times (discard results)
-      2. If CUDA available, synchronize after warmup
-      3. Time `iters` runs using CUDA events (CUDA) or perf_counter (CPU)
-      4. Return average time in milliseconds
-    """
-    # Your implementation here
-    pass
+    for _ in range(warmup):
+        fn()
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    if torch.cuda.is_available():
+        s = torch.cuda.Event(enable_timing=True)
+        e = torch.cuda.Event(enable_timing=True)
+        s.record()
+        for _ in range(iters):
+            fn()
+        e.record()
+        torch.cuda.synchronize()
+        return s.elapsed_time(e) / iters
+    else:
+        t0 = time.perf_counter()
+        for _ in range(iters):
+            fn()
+        return (time.perf_counter() - t0) / iters * 1000
 
 # Test it
 def matmul_fn():
@@ -179,8 +189,11 @@ ids = torch.randint(0, 1000, (8, 16), device=DEVICE)
 #         model2(ids)
 # print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=8))
 
-# TODO 5: your code here
-print("  (TODO 5: add profiler here)")
+with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+             record_shapes=True) as prof:
+    with torch.no_grad():
+        model2(ids)
+print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=8))
 
 print("  ✓ Section 4 — use profiler to find slow ops before optimising")
 
@@ -203,13 +216,13 @@ if DEVICE == "cuda":
 
     # TODO 6: Allocate a 100MB float32 tensor on DEVICE
     #   100MB = 100*1e6 bytes / 4 bytes_per_float = 25M floats
-    big_tensor = None
+    big_tensor = torch.empty(25_000_000, device=DEVICE)
 
     mem_after = torch.cuda.memory_allocated() / 1e6
 
     # TODO 7: Delete big_tensor and empty the cache
     del big_tensor
-    # torch.cuda.empty_cache()   # uncomment
+    torch.cuda.empty_cache()
 
     mem_freed = torch.cuda.memory_allocated() / 1e6
     peak_mem  = torch.cuda.max_memory_allocated() / 1e6
@@ -219,7 +232,6 @@ if DEVICE == "cuda":
     print(f"  After  del+empty  : {mem_freed:.1f} MB")
     print(f"  Peak allocated    : {peak_mem:.1f} MB")
 
-    assert big_tensor is None or True, "allocate big_tensor"
     assert mem_after > mem_before + 50, f"big_tensor should add ~100MB, got {mem_after-mem_before:.1f}MB"
     print("  ✓ Section 5 — track memory to avoid OOM")
 else:
@@ -245,16 +257,22 @@ if DEVICE == "cuda":
     # Name them: "tokenize", "forward", "loss"
 
     # Section: tokenize
+    torch.cuda.nvtx.range_push("tokenize")
     ids2 = torch.randint(0, 1000, (4, 32), device=DEVICE)
+    torch.cuda.nvtx.range_pop()
 
     # Section: forward
+    torch.cuda.nvtx.range_push("forward")
     with torch.no_grad():
         out = model2(ids2)
+    torch.cuda.nvtx.range_pop()
 
     # Section: loss
+    torch.cuda.nvtx.range_push("loss")
     target = torch.randint(0, 10, (4, 32), device=DEVICE)
     loss_fn = nn.CrossEntropyLoss()
     loss = loss_fn(out.reshape(-1, 10), target.reshape(-1))
+    torch.cuda.nvtx.range_pop()
 
     print(f"  loss = {loss.item():.4f}")
     print("  ✓ Section 6 — add NVTX markers, then profile with:")

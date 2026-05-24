@@ -58,7 +58,7 @@ import signal
 import torch
 import random
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'shared'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'shared', 'models'))
 from model import TinyTransformer
 
 parser = argparse.ArgumentParser(description="Steady-state inference server for live profiling")

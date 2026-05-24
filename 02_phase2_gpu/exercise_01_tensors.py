@@ -28,16 +28,16 @@ print("=" * 55)
 print("\n── Section 1: Creating Tensors ──")
 
 # TODO 1: Create a 1-D tensor with values [1.0, 2.0, 3.0, 4.0, 5.0]
-t1 = None  # replace None with your answer
+t1 = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0])
 
 # TODO 2: Create a 3×4 tensor filled with zeros, dtype=float32
-t2 = None
+t2 = torch.zeros(3, 4)
 
 # TODO 3: Create a 2×3 tensor of random floats between 0 and 1
-t3 = None
+t3 = torch.rand(2, 3)
 
 # TODO 4: Create a 1-D tensor containing integers 0..9 (like Python range)
-t4 = None
+t4 = torch.arange(10)
 
 # --- checks ---
 assert t1 is not None and t1.shape == (5,),          "t1 should have shape (5,)"
@@ -57,16 +57,16 @@ print("\n── Section 2: Shape Operations ──")
 base = torch.arange(24, dtype=torch.float32)
 
 # TODO 5: Reshape base into shape (2, 3, 4)
-t5 = None
+t5 = base.reshape(2, 3, 4)
 
 # TODO 6: Transpose t5 so axes become (2, 4, 3) — swap last two dims
-t6 = None
+t6 = t5.transpose(1, 2)
 
 # TODO 7: Flatten t5 back to 1-D
-t7 = None
+t7 = t5.flatten()
 
 # TODO 8: Add a batch dimension to base: shape (1, 24)
-t8 = None
+t8 = base.unsqueeze(0)
 
 # --- checks ---
 assert t5 is not None and t5.shape == (2, 3, 4),  "t5 should be (2,3,4)"
@@ -84,16 +84,16 @@ a = torch.tensor([[1., 2.], [3., 4.]])
 b = torch.tensor([[5., 6.], [7., 8.]])
 
 # TODO 9: Element-wise multiplication of a and b
-t9 = None
+t9 = a * b
 
 # TODO 10: Matrix multiplication of a and b  (use torch.mm or @)
-t10 = None
+t10 = a @ b
 
 # TODO 11: Mean of all elements in a
-t11 = None   # should be a scalar tensor
+t11 = a.mean()
 
 # TODO 12: Column-wise sum of a  →  shape (2,)
-t12 = None
+t12 = a.sum(dim=0)
 
 # --- checks ---
 assert t9  is not None and t9.tolist()  == [[5.,12.],[21.,32.]], "t9 element-wise mul failed"
@@ -111,16 +111,16 @@ m = torch.arange(16, dtype=torch.float32).reshape(4, 4)
 # m = [[0,1,2,3],[4,5,6,7],[8,9,10,11],[12,13,14,15]]
 
 # TODO 13: Get the element at row 2, col 3  (should be 11.0)
-t13 = None
+t13 = m[2, 3]
 
 # TODO 14: Get the entire second row  →  tensor([4,5,6,7])
-t14 = None
+t14 = m[1]
 
 # TODO 15: Get rows 1 and 2, cols 1 and 2  →  shape (2,2)
-t15 = None
+t15 = m[1:3, 1:3]
 
 # TODO 16: Boolean mask — select all elements > 8
-t16 = None   # 1-D tensor of elements that satisfy the condition
+t16 = m[m > 8]
 
 # --- checks ---
 assert t13 is not None and t13.item() == 11.0,         "t13 element wrong"
@@ -138,13 +138,13 @@ cpu_tensor = torch.randn(3, 3)
 DEVICE     = "cuda" if torch.cuda.is_available() else "cpu"
 
 # TODO 17: Move cpu_tensor to DEVICE (use .to())
-t17 = None
+t17 = cpu_tensor.to(DEVICE)
 
 # TODO 18: Move t17 back to CPU and convert to numpy
-t18_numpy = None   # should be a numpy array
+t18_numpy = t17.cpu().numpy()
 
 # TODO 19: Create a new tensor directly on DEVICE
-t19 = None   # any tensor created on DEVICE, not CPU
+t19 = torch.zeros(2, device=DEVICE)
 
 # --- checks ---
 assert t17 is not None and str(t17.device).startswith(DEVICE), "t17 not on correct device"
@@ -160,13 +160,13 @@ print("\n── Section 6: Dtypes & Memory ──")
 x32 = torch.randn(1000, 1000, dtype=torch.float32)
 
 # TODO 20: Convert x32 to float16
-x16 = None
+x16 = x32.half()
 
 # TODO 21: How many bytes does x32 use? (use .element_size() * .numel())
-bytes32 = None   # integer
+bytes32 = x32.element_size() * x32.numel()
 
 # TODO 22: How many bytes does x16 use?
-bytes16 = None   # integer
+bytes16 = x16.element_size() * x16.numel()
 
 # --- checks ---
 assert x16 is not None and x16.dtype == torch.float16,  "x16 should be float16"

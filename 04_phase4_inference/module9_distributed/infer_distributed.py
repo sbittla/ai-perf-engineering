@@ -57,7 +57,7 @@ import torch
 import torch.nn as nn
 import torch.distributed as dist
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'shared'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'shared', 'models'))
 from model import TinyTransformer
 
 parser = argparse.ArgumentParser()

@@ -23,7 +23,7 @@ parser.add_argument("--tokens", type=int, default=50)
 parser.add_argument("--plot",   action="store_true")
 args = parser.parse_args()
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'capstone2_phase2to5', 'shared'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'shared', 'models'))
 try:
     from model import TinyTransformer
     HAS_MODEL = True

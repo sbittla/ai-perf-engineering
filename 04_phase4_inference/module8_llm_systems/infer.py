@@ -64,7 +64,7 @@ import torch
 import torch.nn.functional as F
 import statistics
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'shared'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'shared', 'models'))
 from model import TinyTransformer, get_model
 
 parser = argparse.ArgumentParser(description="LLM Inference — profiling target")

@@ -48,7 +48,7 @@ parser.add_argument("--temp",     type=float, default=0.8)
 parser.add_argument("--prompt-len", type=int, default=20)
 args = parser.parse_args()
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'capstone2_phase2to5', 'shared'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'shared', 'models'))
 try:
     from model import TinyTransformer
     HAS_MODEL = True

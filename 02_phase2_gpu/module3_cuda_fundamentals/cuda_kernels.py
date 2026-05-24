@@ -317,12 +317,12 @@ def exp_memory_hierarchy():
         return
 
     print(f"  GPU: {props.name}")
-    print(f"  L2 cache size: {props.l2_cache_size / 1e6:.0f}MB\n")
+    print(f"  L2 cache size: {props.L2_cache_size / 1e6:.0f}MB\n")
 
     print(f"  {'Size':>12}  {'Time (μs)':>12}  {'BW (GB/s)':>12}  {'Cache Level':>14}")
     print(f"  {'─'*12}  {'─'*12}  {'─'*12}  {'─'*14}")
 
-    l2_size = props.l2_cache_size
+    l2_size = props.L2_cache_size
 
     for size_mb in [0.01, 0.1, 0.5, 1, 4, 16, 32, 64, 128]:
         n = int(size_mb * 1e6 / 4)   # number of float32 elements

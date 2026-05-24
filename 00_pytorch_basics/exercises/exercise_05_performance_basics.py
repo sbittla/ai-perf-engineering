@@ -50,28 +50,29 @@ if DEVICE == "cuda":
     # WRONG: CPU timer (result is misleading)
     t0 = time.time()
     C  = torch.mm(A, B)
-    # At this point, the GPU may NOT be done — we haven't waited!
     t_wrong = (time.time() - t0) * 1000
     print(f"  WRONG (no sync) : {t_wrong:.3f} ms  ← GPU probably not done yet")
 
     # STILL WRONG: even with synchronize after timing start
     t0 = time.time()
     C  = torch.mm(A, B)
-    torch.cuda.synchronize()   # wait for GPU to finish
+    torch.cuda.synchronize()
     t_cpu_sync = (time.time() - t0) * 1000
     print(f"  Better (w/sync) : {t_cpu_sync:.3f} ms  ← includes Python overhead")
 
     # CORRECT: CUDA events record timestamps on the GPU timeline
     # TODO 1: Create start and end CUDA events with enable_timing=True
-    start_evt = None
-    end_evt   = None
+    start_evt = torch.cuda.Event(enable_timing=True)
+    end_evt   = torch.cuda.Event(enable_timing=True)
 
     # TODO 2: Record start_evt, run torch.mm(A, B), record end_evt
-    # (hint: start_evt.record(); C = ...; end_evt.record())
+    start_evt.record()
+    C = torch.mm(A, B)
+    end_evt.record()
 
-    # TODO 3: Synchronize (wait for GPU) then get elapsed time
-    # (hint: torch.cuda.synchronize(); elapsed = start_evt.elapsed_time(end_evt))
-    elapsed_correct = None
+    # TODO 3: Synchronize then get elapsed time
+    torch.cuda.synchronize()
+    elapsed_correct = start_evt.elapsed_time(end_evt)
 
     assert start_evt is not None,       "create start event"
     assert end_evt   is not None,       "create end event"
@@ -79,7 +80,7 @@ if DEVICE == "cuda":
     assert elapsed_correct > 0,         "elapsed should be > 0"
     print(f"  CORRECT (events): {elapsed_correct:.3f} ms  ← true GPU time")
 else:
-    elapsed_correct = 1.0   # placeholder for CPU
+    elapsed_correct = 1.0
     print("  (CUDA not available — showing CPU timing only)")
 
 print("  ✓ Section 1 — always use CUDA events for GPU timing")
@@ -138,8 +139,33 @@ def benchmark(fn, warmup=5, iters=20, label=""):
       3. Time `iters` runs using CUDA events (CUDA) or perf_counter (CPU)
       4. Return average time in milliseconds
     """
-    # Your implementation here
-    pass
+    # 1. Warmup runs
+    for _ in range(warmup):
+        fn()
+
+    # 2. Sync after warmup so queued GPU work doesn't bleed into timing
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+
+    # 3. Timed runs
+    if torch.cuda.is_available():
+        s = torch.cuda.Event(enable_timing=True)
+        e = torch.cuda.Event(enable_timing=True)
+        s.record()
+        for _ in range(iters):
+            fn()
+        e.record()
+        torch.cuda.synchronize()
+        avg_ms = s.elapsed_time(e) / iters
+    else:
+        t0 = time.perf_counter()
+        for _ in range(iters):
+            fn()
+        avg_ms = (time.perf_counter() - t0) / iters * 1000
+
+    if label:
+        print(f"  [{label}] {avg_ms:.3f} ms / iter")
+    return avg_ms
 
 # Test it
 def matmul_fn():
@@ -167,20 +193,17 @@ model2.eval()
 
 ids = torch.randint(0, 1000, (8, 16), device=DEVICE)
 
-# TODO 5: Use torch.profiler.profile to profile model2(ids)
-#   activities = [CPU, CUDA], record_shapes=True
-# Then print the table sorted by cuda_time_total, row_limit=8
-# Wrap in: with profile(...) as prof:
+# TODO 5: Profile model2(ids) with CPU + CUDA activities
+activities = [ProfilerActivity.CPU]
+if DEVICE == "cuda":
+    activities.append(ProfilerActivity.CUDA)
 
-# Expected structure:
-# with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
-#              record_shapes=True) as prof:
-#     with torch.no_grad():
-#         model2(ids)
-# print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=8))
+with profile(activities=activities, record_shapes=True) as prof:
+    with torch.no_grad():
+        model2(ids)
 
-# TODO 5: your code here
-print("  (TODO 5: add profiler here)")
+sort_by = "cuda_time_total" if DEVICE == "cuda" else "cpu_time_total"
+print(prof.key_averages().table(sort_by=sort_by, row_limit=8))
 
 print("  ✓ Section 4 — use profiler to find slow ops before optimising")
 
@@ -198,18 +221,17 @@ print("""
 if DEVICE == "cuda":
     torch.cuda.reset_peak_memory_stats()
 
-    # Before allocation
     mem_before = torch.cuda.memory_allocated() / 1e6   # MB
 
     # TODO 6: Allocate a 100MB float32 tensor on DEVICE
     #   100MB = 100*1e6 bytes / 4 bytes_per_float = 25M floats
-    big_tensor = None
+    big_tensor = torch.empty(25_000_000, device=DEVICE)
 
     mem_after = torch.cuda.memory_allocated() / 1e6
 
     # TODO 7: Delete big_tensor and empty the cache
     del big_tensor
-    # torch.cuda.empty_cache()   # uncomment
+    torch.cuda.empty_cache()
 
     mem_freed = torch.cuda.memory_allocated() / 1e6
     peak_mem  = torch.cuda.max_memory_allocated() / 1e6
@@ -219,7 +241,6 @@ if DEVICE == "cuda":
     print(f"  After  del+empty  : {mem_freed:.1f} MB")
     print(f"  Peak allocated    : {peak_mem:.1f} MB")
 
-    assert big_tensor is None or True, "allocate big_tensor"
     assert mem_after > mem_before + 50, f"big_tensor should add ~100MB, got {mem_after-mem_before:.1f}MB"
     print("  ✓ Section 5 — track memory to avoid OOM")
 else:
@@ -241,20 +262,26 @@ print("""
 """)
 
 if DEVICE == "cuda":
-    # TODO 8: Add NVTX markers around the following three sections.
-    # Name them: "tokenize", "forward", "loss"
+    # TODO 8: Add NVTX markers around the three sections below.
+    # Names: "tokenize", "forward", "loss"
 
     # Section: tokenize
+    torch.cuda.nvtx.range_push("tokenize")
     ids2 = torch.randint(0, 1000, (4, 32), device=DEVICE)
+    torch.cuda.nvtx.range_pop()
 
     # Section: forward
+    torch.cuda.nvtx.range_push("forward")
     with torch.no_grad():
         out = model2(ids2)
+    torch.cuda.nvtx.range_pop()
 
     # Section: loss
+    torch.cuda.nvtx.range_push("loss")
     target = torch.randint(0, 10, (4, 32), device=DEVICE)
     loss_fn = nn.CrossEntropyLoss()
     loss = loss_fn(out.reshape(-1, 10), target.reshape(-1))
+    torch.cuda.nvtx.range_pop()
 
     print(f"  loss = {loss.item():.4f}")
     print("  ✓ Section 6 — add NVTX markers, then profile with:")
@@ -267,36 +294,3 @@ print("  ALL SECTIONS COMPLETE — Exercise 05 done!")
 print("  You now know how to time, profile, and measure GPU code.")
 print("  This is the foundation for everything in the course.")
 print("=" * 60)
-
-# ─────────────────────────────────────────────────────────
-# HINTS
-# ─────────────────────────────────────────────────────────
-# TODO 1:  start_evt = torch.cuda.Event(enable_timing=True)
-#          end_evt   = torch.cuda.Event(enable_timing=True)
-# TODO 2:  start_evt.record(); C = torch.mm(A, B); end_evt.record()
-# TODO 3:  torch.cuda.synchronize()
-#          elapsed_correct = start_evt.elapsed_time(end_evt)
-# TODO 4:  def benchmark(fn, warmup=5, iters=20, label=""):
-#              for _ in range(warmup): fn()
-#              if torch.cuda.is_available(): torch.cuda.synchronize()
-#              if torch.cuda.is_available():
-#                  s = torch.cuda.Event(enable_timing=True)
-#                  e = torch.cuda.Event(enable_timing=True)
-#                  s.record()
-#                  for _ in range(iters): fn()
-#                  e.record()
-#                  torch.cuda.synchronize()
-#                  return s.elapsed_time(e) / iters
-#              else:
-#                  t0 = time.perf_counter()
-#                  for _ in range(iters): fn()
-#                  return (time.perf_counter()-t0)/iters*1000
-# TODO 5:  with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
-#                       record_shapes=True) as prof:
-#              with torch.no_grad(): model2(ids)
-#          print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=8))
-# TODO 6:  big_tensor = torch.empty(25_000_000, device=DEVICE)
-# TODO 7:  del big_tensor; torch.cuda.empty_cache()
-# TODO 8:  torch.cuda.nvtx.range_push("tokenize")
-#          ... code ...
-#          torch.cuda.nvtx.range_pop()

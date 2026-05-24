@@ -40,7 +40,7 @@ parser.add_argument("--batch", type=int, default=8)
 parser.add_argument("--seq",   type=int, default=64)
 args = parser.parse_args()
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'capstone2_phase2to5', 'shared'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'shared', 'models'))
 try:
     from model import TinyTransformer
     HAS_MODEL = True

@@ -66,12 +66,11 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
 # Import shared model definitions
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'shared', 'models'))
 try:
     from model import TinyTransformer, SmallCNN, get_model
 except ImportError:
-    # Fallback: look in shared/
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'shared'))
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'shared', 'models'))
     from model import TinyTransformer, SmallCNN, get_model
 
 # ── Argument Parsing ──────────────────────────────────────────────────────────

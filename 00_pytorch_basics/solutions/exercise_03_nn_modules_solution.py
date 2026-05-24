@@ -32,14 +32,14 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 print("\n── Section 1: Built-in Layers ──")
 
 # TODO 1: Create a Linear layer: 8 inputs → 4 outputs, no bias
-linear = None
+linear = nn.Linear(8, 4, bias=False)
 
 # TODO 2: Create a layer stack with nn.Sequential:
 #   Linear(16, 64) → ReLU → Linear(64, 32) → ReLU → Linear(32, 10)
-mlp = None
+mlp = nn.Sequential(nn.Linear(16, 64), nn.ReLU(), nn.Linear(64, 32), nn.ReLU(), nn.Linear(32, 10))
 
 # TODO 3: Count total trainable parameters in mlp
-n_params = None   # integer
+n_params = sum(p.numel() for p in mlp.parameters())
 
 x = torch.randn(4, 16)   # batch of 4, feature dim 16
 out = mlp(x)
@@ -66,13 +66,14 @@ class ResidualBlock(nn.Module):
     def __init__(self, dim: int):
         super().__init__()
         # TODO 4: Define self.linear as a Linear layer: dim → dim
+        self.linear = nn.Linear(dim, dim)
         # TODO 5: Define self.norm as a LayerNorm over dim
-        pass   # remove this once you add the layers
+        self.norm = nn.LayerNorm(dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # TODO 6: Return LayerNorm(x + linear(x))
         # This is the residual connection pattern used in every transformer
-        return x   # replace with correct implementation
+        return self.norm(x + self.linear(x))
 
 dim = 32
 block = ResidualBlock(dim).to(DEVICE)
@@ -108,12 +109,12 @@ mdl = ModelWithDropout()
 x   = torch.ones(100, 10)
 
 # TODO 7: Get output in TRAIN mode (dropout active — output will vary)
-mdl.???()  # set to train mode
+mdl.train()
 with torch.no_grad():
     out_train = mdl(x)
 
 # TODO 8: Get output in EVAL mode (dropout disabled — output is deterministic)
-mdl.???()  # set to eval mode
+mdl.eval()
 with torch.no_grad():
     out_eval1 = mdl(x)
     out_eval2 = mdl(x)   # run again
@@ -141,13 +142,13 @@ net = nn.Sequential(nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 2))
 net.eval()
 
 # TODO 9: Save the state dict to "test_model.pt"
-# (hint: torch.save(net.state_dict(), path))
+torch.save(net.state_dict(), "test_model.pt")
 
 # TODO 10: Create a NEW model with the same architecture
-net2 = None
+net2 = nn.Sequential(nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 2))
 
 # TODO 11: Load the saved weights into net2
-# (hint: net2.load_state_dict(torch.load(path)))
+net2.load_state_dict(torch.load("test_model.pt", weights_only=True))
 
 # TODO 12: Verify outputs match
 x_test = torch.randn(3, 4)
@@ -170,8 +171,9 @@ print("\n── Section 5: Model on Device ──")
 net3 = nn.Linear(8, 4)
 
 # TODO 13: Move net3 to DEVICE
+net3 = net3.to(DEVICE)
 # TODO 14: Verify all parameters are on DEVICE
-all_on_device = None   # True or False
+all_on_device = all(str(p.device).startswith(DEVICE) for p in net3.parameters())
 
 x_dev = torch.randn(2, 8, device=DEVICE)
 out_dev = net3(x_dev)

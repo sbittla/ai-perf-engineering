@@ -43,7 +43,7 @@ from torch.distributed.fsdp import (
 )
 from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'capstone2_phase2to5', 'shared'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'shared', 'models'))
 try:
     from model import TinyTransformer, TransformerBlock
     HAS_MODEL = True

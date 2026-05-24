@@ -47,11 +47,11 @@ class SineDataset(Dataset):
 
     def __len__(self):
         # TODO 1: Return the number of samples
-        pass
+        return len(self.x)
 
     def __getitem__(self, idx):
         # TODO 2: Return the (input, target) pair at index idx
-        pass
+        return self.x[idx], self.y[idx]
 
 # Test it
 ds = SineDataset(200)
@@ -71,11 +71,11 @@ val_ds   = SineDataset(200)
 
 # TODO 3: Create a DataLoader for train_ds
 #   batch_size=32, shuffle=True, num_workers=0
-train_loader = None
+train_loader = DataLoader(train_ds, batch_size=32, shuffle=True, num_workers=0)
 
 # TODO 4: Create a DataLoader for val_ds
 #   batch_size=64, shuffle=False, num_workers=0
-val_loader = None
+val_loader = DataLoader(val_ds, batch_size=64, shuffle=False, num_workers=0)
 
 # Check one batch
 batch_x, batch_y = next(iter(train_loader))
@@ -93,11 +93,11 @@ print("\n── Section 3: Model ──")
 
 # TODO 5: Build a 3-layer MLP for regression:
 #   Linear(1→64) → ReLU → Linear(64→64) → ReLU → Linear(64→1)
-model = None
+model = nn.Sequential(nn.Linear(1, 64), nn.ReLU(), nn.Linear(64, 64), nn.ReLU(), nn.Linear(64, 1))
 
 # Move to device
 # TODO 6: Move model to DEVICE
-model = model   # fix this line
+model = model.to(DEVICE)
 
 n_params = sum(p.numel() for p in model.parameters())
 print(f"  Model parameters: {n_params}")
@@ -123,20 +123,22 @@ for epoch in range(N_EPOCHS):
 
     for xb, yb in train_loader:
         # TODO 7: Move xb and yb to DEVICE
-        xb = None
-        yb = None
+        xb = xb.to(DEVICE)
+        yb = yb.to(DEVICE)
 
         # TODO 8: Zero the gradients
-        # (hint: optimizer.zero_grad(set_to_none=True))
+        optimizer.zero_grad(set_to_none=True)
 
         # TODO 9: Forward pass — get predictions
-        pred = None
+        pred = model(xb)
 
         # TODO 10: Compute MSE loss
-        loss = None
+        loss = criterion(pred, yb)
 
         # TODO 11: Backward pass
+        loss.backward()
         # TODO 12: Optimizer step
+        optimizer.step()
 
         train_losses.append(loss.item())   # .item() detaches and moves to CPU
 
@@ -145,12 +147,13 @@ for epoch in range(N_EPOCHS):
     val_losses = []
 
     # TODO 13: Wrap the validation loop in torch.no_grad()
-    for xb, yb in val_loader:
-        xb  = xb.to(DEVICE)
-        yb  = yb.to(DEVICE)
-        pred = model(xb)
-        loss = criterion(pred, yb)
-        val_losses.append(loss.item())
+    with torch.no_grad():
+        for xb, yb in val_loader:
+            xb  = xb.to(DEVICE)
+            yb  = yb.to(DEVICE)
+            pred = model(xb)
+            loss = criterion(pred, yb)
+            val_losses.append(loss.item())
 
     avg_train = sum(train_losses) / len(train_losses)
     avg_val   = sum(val_losses)   / len(val_losses)
@@ -194,17 +197,16 @@ else:
         opt_amp.zero_grad(set_to_none=True)
 
         # TODO 14: Use torch.autocast to run forward in FP16
-        # with torch.autocast(device_type="cuda", dtype=torch.float16):
-        #     pred = ...
-        #     loss = ...
-        pred = model_amp(xb)   # replace with autocast version
-        loss = criterion(pred, yb)
+        with torch.autocast(device_type="cuda", dtype=torch.float16):
+            pred = model_amp(xb)
+            loss = criterion(pred, yb)
 
         # TODO 15: Use scaler.scale(loss).backward() instead of loss.backward()
-        loss.backward()   # replace with scaler version
+        scaler.scale(loss).backward()
 
         # TODO 16: Use scaler.step(opt_amp) and scaler.update()
-        opt_amp.step()    # replace with scaler version
+        scaler.step(opt_amp)
+        scaler.update()
 
     amp_time = time.perf_counter() - t0
     print(f"  AMP training time (1 epoch): {amp_time*1000:.1f}ms")
@@ -220,7 +222,7 @@ test_x = torch.tensor([[0.0], [1.5707], [3.1415]], device=DEVICE)   # 0, π/2, �
 
 # TODO 17: Run model inference — remember: no_grad + eval mode
 with torch.no_grad():
-    pred_y = None   # model(test_x)
+    pred_y = model(test_x)
 
 # sin(0)=0, sin(π/2)≈1, sin(π)≈0
 assert pred_y is not None,             "pred_y is None"
